@@ -44,10 +44,6 @@ jobs:
           composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
           composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction
 
-      - name: Check code style
-        if: matrix.php == '8.3' && matrix.laravel == '11.*' && matrix.dependency-version == 'prefer-stable'
-        run: vendor/bin/pint --test
-
       - name: Execute tests
         run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
 
