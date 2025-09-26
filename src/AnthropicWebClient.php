@@ -2,31 +2,34 @@
 
 namespace JoshFinlayAU\LaravelAnthropicWeb;
 
+use Exception;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\Client\Response;
-use Exception;
 
 /**
  * Anthropic API client with web tools support
- * 
+ *
  * Supports web search, web fetch, JSON formatting, and streaming responses.
  * Compatible with latest Claude models including Sonnet 4 and Opus 4.1.
  */
 class AnthropicWebClient
 {
     protected string $apiKey;
+
     protected string $baseUrl;
+
     protected array $defaultHeaders;
+
     protected int $timeout;
 
     public function __construct(?string $apiKey = null, string $baseUrl = 'https://api.anthropic.com/v1', int $timeout = 60)
     {
-        $this->apiKey = $apiKey ?? config('anthropic-web.api_key');
+        $this->apiKey = $apiKey ?? $this->getApiKey();
         $this->baseUrl = $baseUrl;
         $this->timeout = $timeout;
-        
-        if (!$this->apiKey) {
+
+        if (! $this->apiKey) {
             throw new Exception('Anthropic API key is required');
         }
 
@@ -40,7 +43,7 @@ class AnthropicWebClient
     public function createMessage(array $params): array
     {
         $headers = $this->defaultHeaders;
-        
+
         if ($this->hasWebTools($params)) {
             $headers['anthropic-beta'] = 'web-fetch-2025-09-10';
         }
@@ -56,7 +59,7 @@ class AnthropicWebClient
     {
         $params['stream'] = true;
         $headers = $this->defaultHeaders;
-        
+
         if ($this->hasWebTools($params)) {
             $headers['anthropic-beta'] = 'web-fetch-2025-09-10';
         }
@@ -65,7 +68,7 @@ class AnthropicWebClient
             ->timeout($this->timeout)
             ->post("{$this->baseUrl}/messages", $params);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new Exception("Anthropic API error: {$response->status()} - {$response->body()}");
         }
 
@@ -127,7 +130,7 @@ class AnthropicWebClient
         // Add response format
         if ($format === 'json' || $schema) {
             $request['response_format'] = ['type' => 'json'];
-            
+
             if ($schema) {
                 $request['response_format']['schema'] = $schema;
             }
@@ -140,7 +143,7 @@ class AnthropicWebClient
     {
         $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $prompt]], $maxTokens, $tools);
         $response = $this->createMessage($request);
-        
+
         return $response['content'][0]['text'] ?? '';
     }
 
@@ -164,7 +167,7 @@ class AnthropicWebClient
     {
         $tools = [
             self::webSearchTool(array_merge(['max_uses' => 3], $searchOptions)),
-            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions))
+            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions)),
         ];
 
         $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $prompt]], $maxTokens, $tools);
@@ -176,8 +179,9 @@ class AnthropicWebClient
     {
         $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
         $response = $this->createMessage($request);
-        
+
         $content = $response['content'][0]['text'] ?? '';
+
         return json_decode($content, true) ?? [];
     }
 
@@ -185,9 +189,10 @@ class AnthropicWebClient
     {
         $tools = [self::webSearchTool(array_merge(['max_uses' => 5], $searchOptions))];
         $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
-        
+
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
+
         return json_decode($content, true) ?? [];
     }
 
@@ -195,19 +200,20 @@ class AnthropicWebClient
     {
         $tools = [
             self::webSearchTool(array_merge(['max_uses' => 3], $searchOptions)),
-            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions))
+            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions)),
         ];
 
         $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
-        
+
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
+
         return json_decode($content, true) ?? [];
     }
 
     protected function hasWebTools(array $params): bool
     {
-        if (!isset($params['tools'])) {
+        if (! isset($params['tools'])) {
             return false;
         }
 
@@ -222,24 +228,24 @@ class AnthropicWebClient
 
     protected function handleResponse(Response $response): array
     {
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             $error = $response->json();
             $message = $error['error']['message'] ?? 'Unknown API error';
             $type = $error['error']['type'] ?? 'api_error';
-            
-            Log::error("Anthropic API Error", [
+
+            Log::error('Anthropic API Error', [
                 'status' => $response->status(),
                 'type' => $type,
                 'message' => $message,
-                'response' => $response->body()
+                'response' => $response->body(),
             ]);
 
             throw new Exception("Anthropic API error ({$type}): {$message}");
         }
 
         $data = $response->json();
-        
-        if (!$data) {
+
+        if (! $data) {
             throw new Exception('Invalid JSON response from Anthropic API');
         }
 
@@ -250,11 +256,28 @@ class AnthropicWebClient
     {
         return [
             'claude-opus-4-1-20250805',
-            'claude-opus-4-20250514', 
+            'claude-opus-4-20250514',
             'claude-sonnet-4-20250514',
             'claude-3-7-sonnet-20250219',
             'claude-3-5-sonnet-latest',
             'claude-3-5-haiku-latest',
         ];
+    }
+
+    /**
+     * Get API key from Laravel config or environment variable
+     */
+    protected function getApiKey(): ?string
+    {
+        // Try Laravel config first (if we're in a Laravel app)
+        if (function_exists('config')) {
+            $configKey = config('anthropic-web.api_key');
+            if ($configKey) {
+                return $configKey;
+            }
+        }
+
+        // Fall back to environment variable (works both in and out of Laravel)
+        return getenv('ANTHROPIC_API_KEY') ?: null;
     }
 }

@@ -1,5 +1,9 @@
 # Laravel Anthropic Web
 
+[![Tests](https://github.com/JoshFinlayAU/laravel-anthropic-web/workflows/Tests/badge.svg)](https://github.com/JoshFinlayAU/laravel-anthropic-web/actions)
+[![Latest Stable Version](https://poser.pugx.org/joshfinlayau/laravel-anthropic-web/v/stable)](https://packagist.org/packages/joshfinlayau/laravel-anthropic-web)
+[![License](https://poser.pugx.org/joshfinlayau/laravel-anthropic-web/license)](https://packagist.org/packages/joshfinlayau/laravel-anthropic-web)
+
 A Laravel package for Anthropic's Claude API with web search and fetch capabilities.
 
 ## Features

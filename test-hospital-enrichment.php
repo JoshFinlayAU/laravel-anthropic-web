@@ -8,8 +8,8 @@ echo "Hospital Enrichment Testing\n";
 echo "===========================\n\n";
 
 // Check for API key
-$apiKey = $_ENV['ANTHROPIC_API_KEY'] ?? null;
-if (!$apiKey) {
+$apiKey = getenv('ANTHROPIC_API_KEY') ?: null;
+if (! $apiKey) {
     echo "Error: No ANTHROPIC_API_KEY environment variable found.\n";
     echo "Set it with: export ANTHROPIC_API_KEY=your-key-here\n";
     exit(1);
@@ -49,8 +49,8 @@ $hospitalSchema = [
                 'thursday' => ['type' => 'string'],
                 'friday' => ['type' => 'string'],
                 'saturday' => ['type' => 'string'],
-                'sunday' => ['type' => 'string']
-            ]
+                'sunday' => ['type' => 'string'],
+            ],
         ],
         'languages_spoken' => ['type' => 'array', 'items' => ['type' => 'string']],
         'latitude' => ['type' => 'number'],
@@ -58,21 +58,21 @@ $hospitalSchema = [
         'established_year' => ['type' => 'integer'],
         'ownership_type' => ['type' => 'string', 'enum' => ['public', 'private', 'non-profit']],
         'description' => ['type' => 'string'],
-        'logo_url' => ['type' => 'string']
-    ]
+        'logo_url' => ['type' => 'string'],
+    ],
 ];
 
 // Test hospitals
 $testHospitals = [
     ['name' => 'Royal Brisbane and Women\'s Hospital', 'city' => 'Brisbane', 'country' => 'Australia'],
     ['name' => 'Mayo Clinic', 'city' => 'Rochester', 'country' => 'United States'],
-    ['name' => 'Johns Hopkins Hospital', 'city' => 'Baltimore', 'country' => 'United States']
+    ['name' => 'Johns Hopkins Hospital', 'city' => 'Baltimore', 'country' => 'United States'],
 ];
 
 foreach ($testHospitals as $index => $hospital) {
-    echo "Test " . ($index + 1) . ": Enriching {$hospital['name']}\n";
-    echo str_repeat('-', 50) . "\n";
-    
+    echo 'Test '.($index + 1).": Enriching {$hospital['name']}\n";
+    echo str_repeat('-', 50)."\n";
+
     $prompt = "Research and enrich data for {$hospital['name']} in {$hospital['city']}, {$hospital['country']}.
 
 INSTRUCTIONS:
@@ -87,7 +87,7 @@ Return ONLY the JSON object with the enriched data according to the provided sch
 
     try {
         $startTime = microtime(true);
-        
+
         $enrichedData = $client->completeJsonWithWebTools(
             $prompt,
             $hospitalSchema,
@@ -96,40 +96,40 @@ Return ONLY the JSON object with the enriched data according to the provided sch
             ['max_uses' => 3], // web search options
             ['max_uses' => 5, 'citations' => ['enabled' => true]] // web fetch options
         );
-        
+
         $endTime = microtime(true);
         $duration = round($endTime - $startTime, 2);
-        
+
         echo "Enrichment completed in {$duration} seconds\n";
         echo "Enriched data:\n";
-        echo json_encode($enrichedData, JSON_PRETTY_PRINT) . "\n\n";
-        
+        echo json_encode($enrichedData, JSON_PRETTY_PRINT)."\n\n";
+
         // Validate key fields
         $requiredFields = ['type', 'address', 'website', 'specialties'];
         $missingFields = [];
-        
+
         foreach ($requiredFields as $field) {
-            if (!isset($enrichedData[$field]) || $enrichedData[$field] === null) {
+            if (! isset($enrichedData[$field]) || $enrichedData[$field] === null) {
                 $missingFields[] = $field;
             }
         }
-        
+
         if (empty($missingFields)) {
             echo "All required fields populated\n";
         } else {
-            echo "Missing fields: " . implode(', ', $missingFields) . "\n";
+            echo 'Missing fields: '.implode(', ', $missingFields)."\n";
         }
-        
-        echo "\n" . str_repeat('=', 70) . "\n\n";
-        
+
+        echo "\n".str_repeat('=', 70)."\n\n";
+
         // Add delay between requests to be respectful
         if ($index < count($testHospitals) - 1) {
             echo "Waiting 2 seconds before next request...\n\n";
             sleep(2);
         }
-        
+
     } catch (Exception $e) {
-        echo "Error enriching {$hospital['name']}: " . $e->getMessage() . "\n\n";
+        echo "Error enriching {$hospital['name']}: ".$e->getMessage()."\n\n";
     }
 }
 
