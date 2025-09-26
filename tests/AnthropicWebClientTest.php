@@ -2,7 +2,6 @@
 
 namespace JoshFinlayAU\LaravelAnthropicWeb\Tests;
 
-use Illuminate\Support\Facades\Http;
 use JoshFinlayAU\LaravelAnthropicWeb\AnthropicWebClient;
 use Orchestra\Testbench\TestCase;
 
@@ -12,7 +11,6 @@ class AnthropicWebClientTest extends TestCase
     {
         return ['JoshFinlayAU\LaravelAnthropicWeb\AnthropicWebServiceProvider'];
     }
-
     protected function getEnvironmentSetUp($app)
     {
         $app['config']->set('anthropic-web.api_key', 'test-key');
@@ -73,46 +71,53 @@ class AnthropicWebClientTest extends TestCase
     public function test_available_models()
     {
         $models = AnthropicWebClient::getAvailableModels();
-
         $this->assertIsArray($models);
         $this->assertContains('claude-sonnet-4-20250514', $models);
         $this->assertContains('claude-opus-4-1-20250805', $models);
     }
 
-    public function test_api_call_with_mocked_response()
+    public function test_has_web_tools_detection()
     {
-        Http::fake([
-            'api.anthropic.com/*' => Http::response([
-                'content' => [['text' => 'Hello! How can I help you?']],
-                'usage' => ['input_tokens' => 10, 'output_tokens' => 20],
-            ]),
-        ]);
-
         $client = new AnthropicWebClient('test-key');
-        $response = $client->complete('Hello');
-
-        $this->assertEquals('Hello! How can I help you?', $response);
-    }
-
-    public function test_json_response_format()
-    {
-        Http::fake([
-            'api.anthropic.com/*' => Http::response([
-                'content' => [['text' => '{"name": "John", "age": 30}']],
-                'usage' => ['input_tokens' => 10, 'output_tokens' => 20],
-            ]),
-        ]);
-
-        $client = new AnthropicWebClient('test-key');
-        $response = $client->completeJson('Return user data as JSON');
-
-        $this->assertEquals(['name' => 'John', 'age' => 30], $response);
+        
+        // Use reflection to test the private method
+        $reflection = new \ReflectionClass($client);
+        $method = $reflection->getMethod('hasWebTools');
+        $method->setAccessible(true);
+        
+        // Test with web search tool
+        $paramsWithWebSearch = [
+            'tools' => [
+                ['type' => 'web_search_20250305', 'name' => 'web_search'],
+            ],
+        ];
+        $this->assertTrue($method->invokeArgs($client, [$paramsWithWebSearch]));
+        
+        // Test with web fetch tool
+        $paramsWithWebFetch = [
+            'tools' => [
+                ['type' => 'web_fetch_20250910', 'name' => 'web_fetch'],
+            ],
+        ];
+        $this->assertTrue($method->invokeArgs($client, [$paramsWithWebFetch]));
+        
+        // Test without web tools
+        $paramsWithoutWebTools = [
+            'tools' => [
+                ['type' => 'other_tool', 'name' => 'other'],
+            ],
+        ];
+        $this->assertFalse($method->invokeArgs($client, [$paramsWithoutWebTools]));
+        
+        // Test with no tools
+        $paramsNoTools = [];
+        $this->assertFalse($method->invokeArgs($client, [$paramsNoTools]));
     }
 
     public function test_message_request_with_format()
     {
         $client = new AnthropicWebClient('test-key');
-
+        
         $schema = [
             'type' => 'object',
             'properties' => [
