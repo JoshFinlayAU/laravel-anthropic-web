@@ -121,22 +121,42 @@ class AnthropicWebClient
 
     public function buildMessageRequestWithFormat(string $model, array $messages, string $format = 'text', ?array $schema = null, int $maxTokens = 4000, array $tools = [], array $options = []): array
     {
-        $request = [
-            'model' => $model,
-            'max_tokens' => $maxTokens,
-            'messages' => $messages,
-        ];
-
-        // Add response format
+        // Claude doesn't support response_format like OpenAI
+        // Instead, we modify the prompt to request JSON format
         if ($format === 'json' || $schema) {
-            $request['response_format'] = ['type' => 'json'];
-
-            if ($schema) {
-                $request['response_format']['schema'] = $schema;
+            $lastMessage = end($messages);
+            if ($lastMessage && $lastMessage['role'] === 'user') {
+                $messages[array_key_last($messages)]['content'] .= "\n\nIMPORTANT: Return your response as valid JSON only, with no additional text or explanation.";
+                
+                if ($schema) {
+                    $schemaDescription = $this->formatSchemaDescription($schema);
+                    $messages[array_key_last($messages)]['content'] .= "\n\nJSON Schema: " . $schemaDescription;
+                }
             }
         }
 
-        return array_merge($request, $tools ? ['tools' => $tools] : [], $options);
+        return array_merge([
+            'model' => $model,
+            'max_tokens' => $maxTokens,
+            'messages' => $messages,
+        ], $tools ? ['tools' => $tools] : [], $options);
+    }
+
+    /**
+     * Format schema description for Claude
+     */
+    private function formatSchemaDescription(array $schema): string
+    {
+        if (isset($schema['properties'])) {
+            $fields = [];
+            foreach ($schema['properties'] as $field => $definition) {
+                $type = $definition['type'] ?? 'string';
+                $fields[] = "\"$field\": $type";
+            }
+            return "{ " . implode(", ", $fields) . " }";
+        }
+        
+        return json_encode($schema);
     }
 
     public function complete(string $prompt, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $tools = []): string
@@ -177,38 +197,87 @@ class AnthropicWebClient
 
     public function completeJson(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $tools = []): array
     {
-        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        // Add JSON formatting instructions to the prompt as recommended by Claude docs
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        
+        if ($schema) {
+            $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
+        }
+
+        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
         $response = $this->createMessage($request);
 
         $content = $response['content'][0]['text'] ?? '';
 
-        return json_decode($content, true) ?? [];
+        return $this->extractJsonFromResponse($content);
+    }
+
+    /**
+     * Extract JSON from Claude's response, handling potential markdown or extra text
+     */
+    private function extractJsonFromResponse(string $content): array
+    {
+        // Remove markdown code blocks if present
+        $content = preg_replace('/```json\s*/', '', $content);
+        $content = preg_replace('/```\s*$/', '', $content);
+        
+        // Try to find JSON object in the response
+        if (preg_match('/\{.*\}/s', $content, $matches)) {
+            $jsonString = $matches[0];
+            $decoded = json_decode($jsonString, true);
+            
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        // If no JSON found, try to decode the entire content
+        $decoded = json_decode(trim($content), true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+
+        return [];
     }
 
     public function completeJsonWithWebSearch(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = []): array
     {
+        // Add JSON formatting instructions to the prompt
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        
+        if ($schema) {
+            $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
+        }
+
         $tools = [self::webSearchTool(array_merge(['max_uses' => 5], $searchOptions))];
-        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
 
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
 
-        return json_decode($content, true) ?? [];
+        return $this->extractJsonFromResponse($content);
     }
 
     public function completeJsonWithWebTools(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = [], array $fetchOptions = []): array
     {
+        // Add JSON formatting instructions to the prompt
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        
+        if ($schema) {
+            $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
+        }
+
         $tools = [
             self::webSearchTool(array_merge(['max_uses' => 3], $searchOptions)),
-            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions)),
+            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions))
         ];
 
-        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
 
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
 
-        return json_decode($content, true) ?? [];
+        return $this->extractJsonFromResponse($content);
     }
 
     protected function hasWebTools(array $params): bool
