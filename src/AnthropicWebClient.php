@@ -197,19 +197,28 @@ class AnthropicWebClient
 
     public function completeJson(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $tools = []): array
     {
-        // Add JSON formatting instructions to the prompt as recommended by Claude docs
-        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        // Add JSON formatting instructions to the prompt
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only.";
         
         if ($schema) {
             $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
         }
 
-        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
+        // Use Claude's response prefilling to force JSON output
+        $messages = [
+            ['role' => 'user', 'content' => $jsonPrompt],
+            ['role' => 'assistant', 'content' => '{'] // Prefill to force JSON
+        ];
+
+        $request = $this->buildMessageRequest($model, $messages, $maxTokens, $tools);
         $response = $this->createMessage($request);
 
         $content = $response['content'][0]['text'] ?? '';
+        
+        // Prepend the opening brace since it was prefilled
+        $fullJson = '{' . $content;
 
-        return $this->extractJsonFromResponse($content);
+        return $this->extractJsonFromResponse($fullJson);
     }
 
     /**
@@ -243,41 +252,59 @@ class AnthropicWebClient
     public function completeJsonWithWebSearch(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = []): array
     {
         // Add JSON formatting instructions to the prompt
-        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only.";
         
         if ($schema) {
             $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
         }
 
+        // Use Claude's response prefilling to force JSON output
+        $messages = [
+            ['role' => 'user', 'content' => $jsonPrompt],
+            ['role' => 'assistant', 'content' => '{'] // Prefill to force JSON
+        ];
+
         $tools = [self::webSearchTool(array_merge(['max_uses' => 5], $searchOptions))];
-        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
+        $request = $this->buildMessageRequest($model, $messages, $maxTokens, $tools);
 
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
+        
+        // Prepend the opening brace since it was prefilled
+        $fullJson = '{' . $content;
 
-        return $this->extractJsonFromResponse($content);
+        return $this->extractJsonFromResponse($fullJson);
     }
 
     public function completeJsonWithWebTools(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = [], array $fetchOptions = []): array
     {
         // Add JSON formatting instructions to the prompt
-        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only. Do not include any text before or after the JSON object.";
+        $jsonPrompt = $prompt . "\n\nPlease respond with valid JSON only.";
         
         if ($schema) {
             $jsonPrompt .= "\n\nThe JSON should follow this structure: " . json_encode($schema, JSON_PRETTY_PRINT);
         }
+
+        // Use Claude's response prefilling to force JSON output
+        $messages = [
+            ['role' => 'user', 'content' => $jsonPrompt],
+            ['role' => 'assistant', 'content' => '{'] // Prefill to force JSON
+        ];
 
         $tools = [
             self::webSearchTool(array_merge(['max_uses' => 3], $searchOptions)),
             self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions))
         ];
 
-        $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $jsonPrompt]], $maxTokens, $tools);
+        $request = $this->buildMessageRequest($model, $messages, $maxTokens, $tools);
 
         $response = $this->createMessage($request);
         $content = $response['content'][0]['text'] ?? '';
+        
+        // Prepend the opening brace since it was prefilled
+        $fullJson = '{' . $content;
 
-        return $this->extractJsonFromResponse($content);
+        return $this->extractJsonFromResponse($fullJson);
     }
 
     protected function hasWebTools(array $params): bool
