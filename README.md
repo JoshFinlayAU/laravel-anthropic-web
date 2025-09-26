@@ -1,16 +1,17 @@
 # Laravel Anthropic Web
 
-A Laravel package for Anthropic's Claude API with full web search and fetch capabilities.
+A Laravel package for Anthropic's Claude API with web search and fetch capabilities.
 
-## Why This Package?
+## Features
 
-While other Anthropic packages exist, this one specifically supports Claude's newer web tools:
-- **Web Search** - Let Claude search the internet for current information
-- **Web Fetch** - Have Claude analyze content from specific URLs
-- **Latest Models** - Support for Claude Sonnet 4, Opus 4.1, and more
-- **Beta Features** - Includes proper beta headers for new capabilities
+This package supports Claude's web tools that other packages don't:
+- Web search for current information
+- Web fetch to analyze content from URLs  
+- Latest Claude models (Sonnet 4, Opus 4.1)
+- JSON response formatting with schema validation
+- Proper beta headers for new API features
 
-Perfect for applications that need AI with access to real-time web data.
+Useful for applications requiring AI with real-time web data access.
 
 ## Installation
 
@@ -198,8 +199,6 @@ AnthropicWeb::webFetchTool([
 
 ## Error Handling
 
-The package throws descriptive exceptions:
-
 ```php
 try {
     $response = AnthropicWeb::complete('Your prompt here');
@@ -215,8 +214,8 @@ try {
 
 ## License
 
-MIT License. See LICENSE file for details.
+MIT
 
 ## Contributing
 
-Pull requests welcome! Please include tests for new features.
+Pull requests welcome. Please include tests for new features.

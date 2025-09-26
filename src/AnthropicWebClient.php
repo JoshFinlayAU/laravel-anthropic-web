@@ -7,6 +7,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Client\Response;
 use Exception;
 
+/**
+ * Anthropic API client with web tools support
+ * 
+ * Supports web search, web fetch, JSON formatting, and streaming responses.
+ * Compatible with latest Claude models including Sonnet 4 and Opus 4.1.
+ */
 class AnthropicWebClient
 {
     protected string $apiKey;
