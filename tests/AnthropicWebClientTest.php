@@ -93,4 +93,44 @@ class AnthropicWebClientTest extends TestCase
         
         $this->assertEquals('Hello! How can I help you?', $response);
     }
+
+    public function test_json_response_format()
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'content' => [['text' => '{"name": "John", "age": 30}']],
+                'usage' => ['input_tokens' => 10, 'output_tokens' => 20]
+            ])
+        ]);
+
+        $client = new AnthropicWebClient('test-key');
+        $response = $client->completeJson('Return user data as JSON');
+        
+        $this->assertEquals(['name' => 'John', 'age' => 30], $response);
+    }
+
+    public function test_message_request_with_format()
+    {
+        $client = new AnthropicWebClient('test-key');
+        
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'name' => ['type' => 'string'],
+                'age' => ['type' => 'integer']
+            ]
+        ];
+        
+        $request = $client->buildMessageRequestWithFormat(
+            'claude-sonnet-4-20250514',
+            [['role' => 'user', 'content' => 'Hello']],
+            'json',
+            $schema,
+            1000
+        );
+        
+        $this->assertEquals('claude-sonnet-4-20250514', $request['model']);
+        $this->assertEquals('json', $request['response_format']['type']);
+        $this->assertEquals($schema, $request['response_format']['schema']);
+    }
 }

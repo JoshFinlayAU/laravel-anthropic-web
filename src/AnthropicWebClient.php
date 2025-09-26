@@ -110,6 +110,26 @@ class AnthropicWebClient
         ], $tools ? ['tools' => $tools] : [], $options);
     }
 
+    public function buildMessageRequestWithFormat(string $model, array $messages, string $format = 'text', ?array $schema = null, int $maxTokens = 4000, array $tools = [], array $options = []): array
+    {
+        $request = [
+            'model' => $model,
+            'max_tokens' => $maxTokens,
+            'messages' => $messages,
+        ];
+
+        // Add response format
+        if ($format === 'json' || $schema) {
+            $request['response_format'] = ['type' => 'json'];
+            
+            if ($schema) {
+                $request['response_format']['schema'] = $schema;
+            }
+        }
+
+        return array_merge($request, $tools ? ['tools' => $tools] : [], $options);
+    }
+
     public function complete(string $prompt, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $tools = []): string
     {
         $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $prompt]], $maxTokens, $tools);
@@ -144,6 +164,39 @@ class AnthropicWebClient
         $request = $this->buildMessageRequest($model, [['role' => 'user', 'content' => $prompt]], $maxTokens, $tools);
 
         return $this->createMessage($request);
+    }
+
+    public function completeJson(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $tools = []): array
+    {
+        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        $response = $this->createMessage($request);
+        
+        $content = $response['content'][0]['text'] ?? '';
+        return json_decode($content, true) ?? [];
+    }
+
+    public function completeJsonWithWebSearch(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = []): array
+    {
+        $tools = [self::webSearchTool(array_merge(['max_uses' => 5], $searchOptions))];
+        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        
+        $response = $this->createMessage($request);
+        $content = $response['content'][0]['text'] ?? '';
+        return json_decode($content, true) ?? [];
+    }
+
+    public function completeJsonWithWebTools(string $prompt, ?array $schema = null, string $model = 'claude-sonnet-4-20250514', int $maxTokens = 4000, array $searchOptions = [], array $fetchOptions = []): array
+    {
+        $tools = [
+            self::webSearchTool(array_merge(['max_uses' => 3], $searchOptions)),
+            self::webFetchTool(array_merge(['max_uses' => 5, 'citations' => ['enabled' => true]], $fetchOptions))
+        ];
+
+        $request = $this->buildMessageRequestWithFormat($model, [['role' => 'user', 'content' => $prompt]], 'json', $schema, $maxTokens, $tools);
+        
+        $response = $this->createMessage($request);
+        $content = $response['content'][0]['text'] ?? '';
+        return json_decode($content, true) ?? [];
     }
 
     protected function hasWebTools(array $params): bool

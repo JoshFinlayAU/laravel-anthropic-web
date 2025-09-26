@@ -72,6 +72,34 @@ $research = AnthropicWeb::completeWithWebTools(
 );
 ```
 
+### JSON Response Format
+
+```php
+// Simple JSON response
+$data = AnthropicWeb::completeJson('Return information about Paris as JSON');
+
+// JSON with schema validation
+$schema = [
+    'type' => 'object',
+    'properties' => [
+        'name' => ['type' => 'string'],
+        'population' => ['type' => 'integer'],
+        'country' => ['type' => 'string']
+    ]
+];
+
+$cityData = AnthropicWeb::completeJson(
+    'Return information about Tokyo',
+    $schema
+);
+
+// JSON response with web search
+$currentData = AnthropicWeb::completeJsonWithWebSearch(
+    'Find current stock price for Apple and return as JSON',
+    ['type' => 'object', 'properties' => ['symbol' => ['type' => 'string'], 'price' => ['type' => 'number']]]
+);
+```
+
 ## Advanced Usage
 
 ### Custom Tool Configuration
