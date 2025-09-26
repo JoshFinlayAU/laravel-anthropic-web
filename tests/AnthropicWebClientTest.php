@@ -135,7 +135,11 @@ class AnthropicWebClientTest extends TestCase
         );
 
         $this->assertEquals('claude-sonnet-4-20250514', $request['model']);
-        $this->assertEquals('json', $request['response_format']['type']);
-        $this->assertEquals($schema, $request['response_format']['schema']);
+        $this->assertEquals(1000, $request['max_tokens']);
+        
+        // Check that JSON instructions were added to the prompt
+        $lastMessage = end($request['messages']);
+        $this->assertStringContainsString('Return your response as valid JSON only', $lastMessage['content']);
+        $this->assertStringContainsString('JSON Schema:', $lastMessage['content']);
     }
 }
